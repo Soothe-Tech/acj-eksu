@@ -4,7 +4,6 @@ export const NAV_LINKS = [
     { label: 'About', href: '/about' },
     { label: 'Journalists', href: '/journalists' },
     { label: 'Contact', href: '/contact' },
-    { label: 'Admin', href: '/admin' }, // Hidden in real app usually
   ];
   
   export const LATEST_UPDATES = [
