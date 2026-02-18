@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { fetchPublishedArticles, fetchArticleById, fetchJournalists, formatArticleTime, articleLabelColor, submitContact } from '../lib/queries';
 import type { Article, Journalist } from '../lib/types';
+import { ACJ_ORGANIZATION } from '../constants';
 
 export const Home = () => {
     const [articles, setArticles] = useState<Article[]>([]);
@@ -23,7 +24,7 @@ export const Home = () => {
             <section className="relative h-[600px] flex items-center justify-center overflow-hidden">
                 <div className="absolute inset-0">
                     <img 
-                        src={topStory?.featured_image_url ?? "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&q=80&w=1600"} 
+                        src={topStory?.featured_image_url ?? ACJ_ORGANIZATION.heroImageUrl} 
                         alt="University Hall" 
                         className="w-full h-full object-cover"
                     />
@@ -31,18 +32,29 @@ export const Home = () => {
                 </div>
                 <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white mt-16">
                     <span className="inline-block py-1 px-3 rounded bg-accent text-white text-xs font-bold uppercase tracking-wider mb-6">Top Story</span>
-                    <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-tight font-display">
-                        The Fourth Arm of<br />
-                        Government: Truth,<br />
-                        Accountability, Excellence
-                    </h1>
-                    <p className="text-xl md:text-2xl text-slate-200 max-w-3xl mx-auto mb-10 font-light font-serif">
-                        Leading the charge for transparency at Ekiti State University. We uncover the stories that matter most to the student body.
-                    </p>
-                    {topStory && (
-                        <Link to={`/news/${topStory.id}`} className="bg-white text-primary px-8 py-3 rounded font-bold hover:bg-slate-100 transition-colors inline-flex items-center gap-2">
-                            Read Full Story <span className="material-icons text-sm">arrow_forward</span>
-                        </Link>
+                    {topStory ? (
+                        <>
+                            <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 leading-tight font-display">
+                                {topStory.title}
+                            </h1>
+                            <p className="text-xl md:text-2xl text-slate-200 max-w-3xl mx-auto mb-10 font-light font-serif line-clamp-3">
+                                {topStory.excerpt ?? 'Leading the charge for transparency at Ekiti State University.'}
+                            </p>
+                            <Link to={`/news/${topStory.id}`} className="bg-white text-primary px-8 py-3 rounded font-bold hover:bg-slate-100 transition-colors inline-flex items-center gap-2">
+                                Read Full Story <span className="material-icons text-sm">arrow_forward</span>
+                            </Link>
+                        </>
+                    ) : (
+                        <>
+                            <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-tight font-display">
+                                The Fourth Arm of<br />
+                                Government: Truth,<br />
+                                Accountability, Excellence
+                            </h1>
+                            <p className="text-xl md:text-2xl text-slate-200 max-w-3xl mx-auto mb-10 font-light font-serif">
+                                Leading the charge for transparency at Ekiti State University. We uncover the stories that matter most to the student body.
+                            </p>
+                        </>
                     )}
                 </div>
             </section>
@@ -51,9 +63,9 @@ export const Home = () => {
             <div className="relative -mt-16 z-20 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="bg-white rounded-lg shadow-xl p-8 flex flex-col md:flex-row items-center justify-between border-l-4 border-primary">
                     <div className="mb-6 md:mb-0">
-                        <h3 className="text-2xl font-bold text-primary mb-2">Welcome to ACJ EKSU</h3>
+                        <h3 className="text-2xl font-bold text-primary mb-2">Welcome to {ACJ_ORGANIZATION.shortName}</h3>
                         <p className="text-slate-600 max-w-xl">
-                            Empowering student voices through investigative journalism and storytelling. We are the official body of campus journalists dedicated to upholding the ethics of the profession.
+                            {ACJ_ORGANIZATION.nature}
                         </p>
                     </div>
                     <div className="flex gap-12 text-center">
@@ -164,9 +176,12 @@ export const About = () => {
                 <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 rounded-full bg-primary/10 blur-3xl"></div>
                 <div className="relative max-w-4xl mx-auto text-center">
                     <h2 className="text-sm font-bold tracking-widest text-primary/70 uppercase mb-6">Our Mission</h2>
-                    <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-primary leading-tight mb-8">
-                        "Fostering a culture of <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-light">transparent</span> and <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-light">responsible</span> journalism within the Ekiti State University community."
+                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-primary leading-tight mb-8">
+                        {ACJ_ORGANIZATION.fullName}
                     </h1>
+                    <p className="text-lg md:text-xl text-slate-600 font-serif max-w-3xl mx-auto leading-relaxed">
+                        {ACJ_ORGANIZATION.mission}
+                    </p>
                     <div className="h-1 w-24 bg-primary mx-auto rounded-full mt-12"></div>
                 </div>
             </section>
@@ -180,8 +195,7 @@ export const About = () => {
                             </div>
                             <h3 className="text-2xl font-bold text-primary font-display">An Independent Watchdog</h3>
                             <div className="prose prose-lg text-slate-600 font-serif">
-                                <p>The Association of Campus Journalists at Ekiti State University acts as the critical eye over campus affairs. We believe that a thriving academic community requires accountability at every level.</p>
-                                <p>We do not merely report events; we investigate processes. By holding student leaders and university officials accountable for their promises and actions, we ensure that the student body remains informed.</p>
+                                <p>{ACJ_ORGANIZATION.mission}</p>
                             </div>
                         </div>
                         <div className="space-y-6 lg:border-l lg:border-slate-200 lg:pl-16">
@@ -190,8 +204,7 @@ export const About = () => {
                             </div>
                             <h3 className="text-2xl font-bold text-primary font-display">The Fourth Arm of Government</h3>
                             <div className="prose prose-lg text-slate-600 font-serif">
-                                <p>Just as the press serves as the Fourth Estate in national democracies, ACJ EKSU functions as the fourth arm of government within the university ecosystem.</p>
-                                <p>Our mandate is clear: to provide checks and balances. We bridge the gap between policy makers and the student populace, translating complex decisions into understandable narratives.</p>
+                                <p>{ACJ_ORGANIZATION.nature}</p>
                             </div>
                         </div>
                     </div>
@@ -203,7 +216,7 @@ export const About = () => {
                     <span className="material-icons text-5xl text-white/90 mb-6">verified_user</span>
                     <h3 className="text-3xl md:text-4xl font-bold text-white mb-6 font-display">Unwavering Independence</h3>
                     <p className="text-xl md:text-2xl font-serif italic text-white/90 max-w-3xl mx-auto leading-relaxed">
-                        "ACJ EKSU remains entirely independent from student politics and university administration. We serve the truth, not interests. Our loyalty lies solely with the facts and the students we serve."
+                        We remain strictly independent from the influence of student politics or administrative influence, using multimedia to ensure accountability and excellence across every corner of Ekiti State University.
                     </p>
                     <div className="mt-10">
                         <span className="inline-block px-4 py-1 rounded-full border border-white/30 text-white/80 text-sm font-medium tracking-wide uppercase">Non-Partisan • Objective • Fearless</span>
@@ -340,9 +353,10 @@ export const Contact = () => {
                  {/* Quick Info Bar */}
                 <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6 mb-8 flex flex-col md:flex-row justify-around items-center gap-6 text-center md:text-left">
                      {[
-                         { icon: 'email', label: 'Email Us', value: 'editor@acjeksu.org' },
-                         { icon: 'location_on', label: 'Visit Us', value: 'Student Union Building, EKSU' },
-                         { icon: 'phone', label: 'Call Us', value: '+234 812 345 6789' }
+                         { icon: 'email', label: 'Email Us', value: ACJ_ORGANIZATION.contactEmail, href: `mailto:${ACJ_ORGANIZATION.contactEmail}` },
+                         { icon: 'link', label: 'Instagram', value: '@acj__eksu', href: ACJ_ORGANIZATION.social.instagram },
+                         { icon: 'link', label: 'X', value: '@ACJ_EKSU', href: ACJ_ORGANIZATION.social.x },
+                         { icon: 'link', label: 'WhatsApp Channel', value: 'Join channel', href: ACJ_ORGANIZATION.social.whatsappChannel }
                      ].map((item, i) => (
                         <React.Fragment key={i}>
                             <div className="flex items-center gap-4 group">
@@ -351,10 +365,14 @@ export const Contact = () => {
                                 </div>
                                 <div>
                                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{item.label}</p>
-                                    <p className="text-lg font-medium text-primary">{item.value}</p>
+                                    {item.href ? (
+                                        <a href={item.href} target="_blank" rel="noopener noreferrer" className="text-lg font-medium text-primary hover:underline">{item.value}</a>
+                                    ) : (
+                                        <p className="text-lg font-medium text-primary">{item.value}</p>
+                                    )}
                                 </div>
                             </div>
-                            {i !== 2 && <div className="w-px h-12 bg-slate-200 hidden md:block"></div>}
+                            {i !== 3 && <div className="w-px h-12 bg-slate-200 hidden md:block"></div>}
                         </React.Fragment>
                      ))}
                 </div>
@@ -470,10 +488,19 @@ export const Contact = () => {
 const NEWS_CATEGORIES = ['All News', 'Campus News', 'Politics', 'Sports', 'Academics', 'Lifestyle', 'Interview', 'Opinion'] as const;
 
 export const News = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const categoryFromUrl = searchParams.get('category') ?? 'All News';
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>('All News');
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    NEWS_CATEGORIES.includes(categoryFromUrl as any) ? categoryFromUrl : 'All News'
+  );
+
+  useEffect(() => {
+    const cat = searchParams.get('category') ?? 'All News';
+    if (NEWS_CATEGORIES.includes(cat as any)) setSelectedCategory(cat);
+  }, [searchParams]);
 
   useEffect(() => {
     fetchPublishedArticles(50)
@@ -502,7 +529,10 @@ export const News = () => {
                <button
                  key={cat}
                  type="button"
-                 onClick={() => setSelectedCategory(cat)}
+                 onClick={() => {
+                 setSelectedCategory(cat);
+                 setSearchParams(cat === 'All News' ? {} : { category: cat });
+               }}
                  className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium border transition-colors ${selectedCategory === cat ? 'bg-primary border-primary text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-primary hover:text-primary'}`}
                >
                  {cat}

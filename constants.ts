@@ -1,3 +1,21 @@
+/** Official ACJ EKSU organization info and social links */
+export const ACJ_ORGANIZATION = {
+  fullName: 'Association of Campus Journalists, Ekiti State University Chapter',
+  shortName: 'ACJ EKSU',
+  tagline: 'JOURNALISM WITH INTEGRITY',
+  mission: 'ACJ EKSU aims to foster a culture of transparent and responsible journalism on campus by equipping student writers and media personnel with professional training, providing our community with verified news that keeps the student community informed. We remain strictly independent from the influence of student politics or administrative influence, using multimedia to ensure accountability and excellence across every corner of Ekiti State University.',
+  nature: 'ACJ EKSU is an independent, student-led media watchdog and professional development guild, serving not only as a source of verified information to students but also as a fourth arm of government in the school.',
+  contactEmail: 'acjeksu83@gmail.com',
+  social: {
+    instagram: 'https://www.instagram.com/acj__eksu/',
+    x: 'https://x.com/ACJ_EKSU',
+    whatsappChannel: 'https://whatsapp.com/channel/0029Var5sZ1KwqSS3jUEtj1t',
+  },
+  /** Direct view links for Google Drive assets */
+  logoUrl: 'https://drive.google.com/uc?export=view&id=1LrTK1pHbTaIwBdNfy642YbQLH5wSdykF',
+  heroImageUrl: 'https://drive.google.com/uc?export=view&id=1mSMyhILyUr3YQO7_na3HyX53CRBuBAt7',
+} as const;
+
 export const NAV_LINKS = [
     { label: 'Home', href: '/' },
     { label: 'News', href: '/news' },

@@ -335,9 +335,7 @@ export const AdminJournalists = () => {
             setFormName('');
             setFormEmail('');
             setFormDepartment('');
-            setSuccessMessage(result.invited
-                ? `Invite sent to ${email}. They can set their password from the email and then log in.`
-                : `Linked ${email}. (User already existed in Auth.)`);
+            setSuccessMessage(result.message);
             load();
         } catch (err) {
             setSubmitError(err instanceof Error ? err.message : 'Failed to create journalist.');

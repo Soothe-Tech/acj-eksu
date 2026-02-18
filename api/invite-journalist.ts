@@ -113,15 +113,11 @@ export default async function handler(req: any, res: any) {
     safeRedirectTo ? { redirectTo: safeRedirectTo } : undefined
   );
   if (inviteRes.error) {
-    // If user exists, link by email.
-    const existing = await admin.auth.admin.getUserByEmail(email);
-    if (existing.data?.user?.id) {
-      authUserId = existing.data.user.id;
-      invited = false;
-    } else {
-      json(res, 400, { error: inviteRes.error.message });
-      return;
-    }
+    // User may already exist (e.g. "User already registered"). Still upsert journalist
+    // with auth_user_id null; they can sign in with that email and be linked later.
+    authUserId = null;
+    invited = false;
+    // Don't return here — fall through to upsert journalist and return friendly message
   } else {
     authUserId = inviteRes.data.user?.id ?? null;
     invited = true;
@@ -155,7 +151,7 @@ export default async function handler(req: any, res: any) {
   json(res, 200, {
     invited,
     journalist: upserted.data,
-    message: invited ? 'Invite email sent' : 'User already exists; linked journalist',
+    message: invited ? 'Invite email sent' : 'User already registered; journalist record updated. They can sign in with that email.',
   });
 }
 
