@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { uploadFile, getPublicUrl } from '../lib/storage';
-import { fetchAdminArticleById, fetchAdminArticles, fetchAdminArticleCounts, fetchLatestPublishedArticle, fetchAdminJournalists, fetchJournalistByEmail, inviteJournalist, fetchMedia, insertMediaRow, setArticleStatus, upsertArticle, fetchSiteSetting, upsertSiteSetting, fetchContactsCount, fetchJournalistsCount } from '../lib/admin';
+import { fetchAdminArticleById, fetchAdminArticles, fetchAdminArticleCounts, fetchLatestPublishedArticle, fetchAdminJournalists, fetchJournalistByEmail, inviteJournalist, fetchMedia, insertMediaRow, setArticleStatus, upsertArticle, updateArticle, fetchSiteSetting, upsertSiteSetting, fetchContactsCount, fetchJournalistsCount } from '../lib/admin';
 import type { Article, ArticleStatus, Journalist, MediaRow } from '../lib/types';
 
 export const AdminLogin = () => {
@@ -96,6 +96,7 @@ export const AdminDashboard = () => {
     const [latestPublished, setLatestPublished] = useState<Article | null>(null);
     const [loading, setLoading] = useState(true);
     const [canPublish, setCanPublish] = useState(false);
+    const [quickEditId, setQuickEditId] = useState<string | null>(null);
     useEffect(() => {
         Promise.all([
             fetchAdminArticles(20).then(setArticles).catch(() => setArticles([])),
@@ -201,8 +202,11 @@ export const AdminDashboard = () => {
                                     </div>
                                     <div className="flex gap-2 mt-3 flex-wrap">
                                         <Link to={`/admin/editor?id=${row.id}`} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-primary text-primary hover:bg-primary/5 font-medium text-xs">
-                                            <span className="material-icons text-sm">edit</span> Review
+                                            <span className="material-icons text-sm">edit</span> Full editor
                                         </Link>
+                                        <button type="button" onClick={() => setQuickEditId(row.id)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium text-xs">
+                                            <span className="material-icons text-sm">tune</span> Quick edit
+                                        </button>
                                         {row.status === 'pending' && canPublish && (
                                             <button type="button" onClick={async () => { await setArticleStatus(row.id, 'published'); setArticles((prev) => prev.map((a) => a.id === row.id ? { ...a, status: 'published' as const } : a)); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium text-xs">
                                                 <span className="material-icons text-sm">publish</span> Publish
@@ -268,8 +272,11 @@ export const AdminDashboard = () => {
                                             <td className="py-4 px-6 text-right">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <Link to={`/admin/editor?id=${row.id}`} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-primary text-primary hover:bg-primary/5 font-medium text-sm">
-                                                        <span className="material-icons text-sm">edit</span> Review
+                                                        <span className="material-icons text-sm">edit</span> Full editor
                                                     </Link>
+                                                    <button type="button" onClick={() => setQuickEditId(row.id)} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 font-medium text-sm">
+                                                        <span className="material-icons text-sm">tune</span> Quick edit
+                                                    </button>
                                                     {row.status === 'pending' && canPublish && (
                                                         <button type="button" onClick={async () => { await setArticleStatus(row.id, 'published'); setArticles((prev) => prev.map((a) => a.id === row.id ? { ...a, status: 'published' as const } : a)); }} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium text-sm">
                                                             <span className="material-icons text-sm">publish</span> Publish
@@ -285,9 +292,128 @@ export const AdminDashboard = () => {
                     </table>
                 </div>
             </div>
+
+            {quickEditId && (
+                <QuickEditModal
+                    articleId={quickEditId}
+                    canPublish={canPublish}
+                    onClose={() => setQuickEditId(null)}
+                    onSaved={(updated) => {
+                        setArticles((prev) => prev.map((a) => a.id === quickEditId ? { ...a, ...updated } : a));
+                        if (latestPublished?.id === quickEditId && updated.status === 'published') {
+                            setLatestPublished((prev) => prev ? { ...prev, ...updated } : null);
+                        }
+                        setQuickEditId(null);
+                    }}
+                />
+            )}
         </div>
     );
 };
+
+function QuickEditModal({
+    articleId,
+    canPublish,
+    onClose,
+    onSaved,
+}: {
+    articleId: string;
+    canPublish: boolean;
+    onClose: () => void;
+    onSaved: (updated: Partial<Article>) => void;
+}) {
+    const [article, setArticle] = useState<Article | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [title, setTitle] = useState('');
+    const [excerpt, setExcerpt] = useState('');
+    const [category, setCategory] = useState('Campus News');
+    const [status, setStatus] = useState<ArticleStatus>('draft');
+
+    useEffect(() => {
+        if (!articleId) return;
+        setLoading(true);
+        setError(null);
+        fetchAdminArticleById(articleId)
+            .then((a) => {
+                if (a) {
+                    setArticle(a);
+                    setTitle(a.title);
+                    setExcerpt(a.excerpt ?? '');
+                    setCategory(a.category);
+                    setStatus(a.status);
+                }
+            })
+            .catch((e) => setError(e?.message ?? 'Failed to load'))
+            .finally(() => setLoading(false));
+    }, [articleId]);
+
+    const handleSave = async () => {
+        if (!title.trim()) return;
+        setSaving(true);
+        setError(null);
+        try {
+            await updateArticle(articleId, { title: title.trim(), excerpt: excerpt.trim() || null, category, status });
+            onSaved({ title: title.trim(), excerpt: excerpt.trim() || null, category, status });
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Failed to save');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-slate-900">Quick edit</h3>
+                    <button type="button" onClick={onClose} className="p-1 rounded text-slate-400 hover:text-slate-600"><span className="material-icons">close</span></button>
+                </div>
+                <div className="p-6 space-y-4">
+                    {loading ? (
+                        <div className="flex justify-center py-8"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+                    ) : error ? (
+                        <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+                    ) : (
+                        <>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Title</label>
+                                <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-primary focus:border-primary" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Excerpt</label>
+                                <textarea value={excerpt} onChange={(e) => setExcerpt(e.target.value)} rows={2} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-primary focus:border-primary resize-none" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Category</label>
+                                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-primary focus:border-primary">
+                                    {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Status</label>
+                                <select value={status} onChange={(e) => setStatus(e.target.value as ArticleStatus)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-primary focus:border-primary">
+                                    <option value="draft">Draft</option>
+                                    <option value="pending">Pending</option>
+                                    {canPublish && <option value="published">Published</option>}
+                                </select>
+                            </div>
+                        </>
+                    )}
+                </div>
+                {!loading && !error && (
+                    <div className="p-6 border-t border-slate-200 flex justify-end gap-2">
+                        <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-sm">Cancel</button>
+                        <button type="button" onClick={handleSave} disabled={saving} className="px-4 py-2 rounded-lg bg-primary hover:bg-primary-light text-white font-medium text-sm disabled:opacity-70">
+                            {saving ? 'Saving…' : 'Save'}
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
 
 export const AdminJournalists = () => {
     const [journalists, setJournalists] = useState<Journalist[]>([]);
@@ -552,7 +678,7 @@ export const AdminEditor = () => {
         const { publicUrl, error } = await uploadFile(file, { folder: 'articles' });
         setUploading(false);
         if (error) {
-            setUploadError(error.message || 'Upload failed. Create the Storage bucket "acj-media" (public) in Supabase and run migrations/20250218000003_storage_policies.sql.');
+            setUploadError(error.message || 'Upload failed. Ensure the Storage bucket "acj-media" exists (Public: on) and storage policies are applied.');
         } else {
             setFeaturedImageUrl(publicUrl);
         }
@@ -957,6 +1083,7 @@ export const AdminMediaLibrary = () => {
     const [media, setMedia] = useState<MediaRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -966,10 +1093,12 @@ export const AdminMediaLibrary = () => {
     const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        setUploadError(null);
         setUploading(true);
         const { path, publicUrl, error } = await uploadFile(file, { folder: 'media' });
         e.target.value = '';
         if (error) {
+            setUploadError(error.message || 'Upload failed.');
             setUploading(false);
             return;
         }
@@ -984,6 +1113,8 @@ export const AdminMediaLibrary = () => {
                 uploaded_by: null,
             });
             setMedia((prev) => [row, ...prev]);
+        } catch (err) {
+            setUploadError(err instanceof Error ? err.message : 'Failed to save media record.');
         } finally {
             setUploading(false);
         }
@@ -995,11 +1126,16 @@ export const AdminMediaLibrary = () => {
         <div className="h-full flex flex-col">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 flex-shrink-0">
                 <h1 className="text-2xl font-bold text-slate-900">Media Library</h1>
-                <div className="flex gap-3">
+                <div className="flex flex-col gap-2">
                     <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={onUpload} />
-                    <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="bg-primary hover:bg-primary-light text-white px-5 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 disabled:opacity-70">
-                        <span className="material-icons text-lg">cloud_upload</span> {uploading ? 'Uploading…' : 'Upload'}
-                    </button>
+                    <div className="flex gap-3">
+                        <button type="button" onClick={() => { fileInputRef.current?.click(); setUploadError(null); }} disabled={uploading} className="bg-primary hover:bg-primary-light text-white px-5 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 disabled:opacity-70">
+                            <span className="material-icons text-lg">cloud_upload</span> {uploading ? 'Uploading…' : 'Upload'}
+                        </button>
+                    </div>
+                    {uploadError && (
+                        <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-100">{uploadError}</p>
+                    )}
                 </div>
             </div>
 

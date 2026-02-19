@@ -200,6 +200,31 @@ export async function setArticleStatus(articleId: string, status: ArticleStatus)
   if (error) throw error;
 }
 
+/** Update only the provided article fields (for quick edits). Omit undefined. */
+export async function updateArticle(
+  articleId: string,
+  patch: Partial<Pick<Article, 'title' | 'slug' | 'excerpt' | 'body' | 'category' | 'featured_image_url' | 'status' | 'author_id'>>
+): Promise<void> {
+  const payload: Record<string, unknown> = {};
+  if (patch.title !== undefined) {
+    payload.title = patch.title;
+    payload.slug = patch.slug ?? slugify(patch.title);
+  }
+  if (patch.slug !== undefined) payload.slug = patch.slug;
+  if (patch.excerpt !== undefined) payload.excerpt = patch.excerpt;
+  if (patch.body !== undefined) payload.body = patch.body;
+  if (patch.category !== undefined) payload.category = patch.category;
+  if (patch.featured_image_url !== undefined) payload.featured_image_url = patch.featured_image_url;
+  if (patch.status !== undefined) {
+    payload.status = patch.status;
+    payload.published_at = patch.status === 'published' ? new Date().toISOString() : null;
+  }
+  if (patch.author_id !== undefined) payload.author_id = patch.author_id;
+  if (Object.keys(payload).length === 0) return;
+  const { error } = await supabase.from('articles').update(payload).eq('id', articleId);
+  if (error) throw error;
+}
+
 export async function fetchMedia(limit = 100): Promise<MediaRow[]> {
   const { data, error } = await supabase.from('media').select('*').order('created_at', { ascending: false }).limit(limit);
   if (error) throw error;
