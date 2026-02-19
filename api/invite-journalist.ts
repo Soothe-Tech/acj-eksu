@@ -123,11 +123,18 @@ export default async function handler(req: any, res: any) {
     safeRedirectTo ? { redirectTo: safeRedirectTo } : undefined
   );
   if (inviteRes.error) {
-    // User may already exist (e.g. "User already registered"). Still upsert journalist
-    // with auth_user_id null; they can sign in with that email and be linked later.
-    authUserId = null;
-    invited = false;
-    // Don't return here — fall through to upsert journalist and return friendly message
+    const errMsg = (inviteRes.error as { message?: string }).message ?? String(inviteRes.error);
+    const isAlreadyRegistered =
+      /already registered|already exists|user already/i.test(errMsg);
+    if (isAlreadyRegistered) {
+      // Known case: user already in Auth. Upsert journalist only; no email sent.
+      authUserId = null;
+      invited = false;
+    } else {
+      // Invite failed for another reason (rate limit, config, etc.) — surface the error.
+      json(res, 400, { error: errMsg });
+      return;
+    }
   } else {
     authUserId = inviteRes.data.user?.id ?? null;
     invited = true;
