@@ -94,15 +94,25 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const inferredOrigin =
-    (req.headers?.origin ?? '').toString().trim() ||
-    (getEnv('SITE_URL') ?? '').toString().trim() ||
-    (getEnv('VERCEL_URL') ? `https://${getEnv('VERCEL_URL')}` : '');
-
-  const safeRedirectTo =
-    redirectTo ||
-    getEnv('INVITE_REDIRECT_TO') ||
-    (inferredOrigin ? `${inferredOrigin}/admin/login` : undefined);
+  // Build redirect URL for the invite email. Never use localhost in production.
+  const isLocalhost = (u: string) => /^https?:\/\/localhost(:\d+)?(\/|$)/i.test(u) || u.startsWith('http://127.0.0.1');
+  const pickRedirect = (...candidates: (string | undefined)[]): string | undefined => {
+    for (const c of candidates) {
+      const u = (c ?? '').toString().trim();
+      if (u && !isLocalhost(u)) return u;
+    }
+    return undefined;
+  };
+  const baseUrl = pickRedirect(
+    getEnv('INVITE_REDIRECT_TO'),      // e.g. https://acj.soothetechnologies.com/admin/login
+    getEnv('SITE_URL'),                // e.g. https://acj.soothetechnologies.com
+    redirectTo,
+    (req.headers?.origin ?? '').toString().trim(),
+    getEnv('VERCEL_URL') ? `https://${getEnv('VERCEL_URL')}` : ''
+  );
+  const safeRedirectTo = baseUrl
+    ? (baseUrl.includes('/admin') ? baseUrl.replace(/\/$/, '') : `${baseUrl.replace(/\/$/, '')}/admin/login`)
+    : undefined;
 
   // Invite (send email). If user already exists, we link instead.
   let authUserId: string | null = null;
