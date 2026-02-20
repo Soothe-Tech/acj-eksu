@@ -5,12 +5,56 @@ import { uploadFile, getPublicUrl } from '../lib/storage';
 import { fetchAdminArticleById, fetchAdminArticles, fetchAdminArticleCounts, fetchLatestPublishedArticle, fetchAdminJournalists, fetchJournalistByEmail, inviteJournalist, fetchMedia, insertMediaRow, setArticleStatus, upsertArticle, updateArticle, fetchSiteSetting, upsertSiteSetting, fetchContactsCount, fetchJournalistsCount } from '../lib/admin';
 import type { Article, ArticleStatus, Journalist, MediaRow } from '../lib/types';
 
+function parseHashParams(hash: string): Record<string, string> {
+    const out: Record<string, string> = {};
+    if (!hash || hash.charAt(0) !== '#') return out;
+    const q = hash.slice(1).split('&');
+    for (const p of q) {
+        const i = p.indexOf('=');
+        if (i > 0) out[decodeURIComponent(p.slice(0, i))] = decodeURIComponent(p.slice(i + 1)).replace(/\+/g, ' ');
+    }
+    return out;
+}
+
 export const AdminLogin = () => {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [checkingInvite, setCheckingInvite] = useState(true);
+    const [showSetPassword, setShowSetPassword] = useState(false);
+    const [newPassword, setNewPassword] = useState('');
+    const [setPasswordLoading, setSetPasswordLoading] = useState(false);
+
+    useEffect(() => {
+        const hash = window.location.hash;
+        const params = parseHashParams(hash);
+        const accessToken = params.access_token || params['access_token'];
+        const refreshToken = params.refresh_token || params['refresh_token'];
+        const type = (params.type || '').toLowerCase();
+
+        if (accessToken && refreshToken) {
+            supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+                .then(({ error: err }) => {
+                    if (err) {
+                        setError(err.message ?? 'Invalid link');
+                        setCheckingInvite(false);
+                        return;
+                    }
+                    if (type === 'invite' || type === 'recovery') {
+                        setShowSetPassword(true);
+                        setCheckingInvite(false);
+                        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                    } else {
+                        navigate('/admin', { replace: true });
+                    }
+                })
+                .catch(() => setCheckingInvite(false));
+        } else {
+            setCheckingInvite(false);
+        }
+    }, [navigate]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -25,55 +69,108 @@ export const AdminLogin = () => {
         navigate('/admin');
     };
 
+    const handleSetPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newPassword || newPassword.length < 6) {
+            setError('Password must be at least 6 characters');
+            return;
+        }
+        setError(null);
+        setSetPasswordLoading(true);
+        const { error: err } = await supabase.auth.updateUser({ password: newPassword });
+        setSetPasswordLoading(false);
+        if (err) {
+            setError(err.message ?? 'Failed to set password');
+            return;
+        }
+        setShowSetPassword(false);
+        navigate('/admin', { replace: true });
+    };
+
+    if (checkingInvite) {
+        return (
+            <div className="min-h-screen bg-background-light flex flex-col items-center justify-center p-4 font-display">
+                <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <p className="mt-4 text-slate-600 text-sm">Signing you in…</p>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-background-light flex flex-col items-center justify-center p-4 relative overflow-hidden font-display">
-            {/* Decor */}
             <div className="absolute -top-40 -left-40 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-50"></div>
             <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-50"></div>
 
             <main className="w-full max-w-md bg-white rounded-xl shadow-2xl shadow-primary/10 border border-slate-100 relative z-10 overflow-hidden">
                 <div className="h-2 w-full bg-gradient-to-r from-primary to-primary-light"></div>
                 <div className="p-8 sm:p-10">
-                    <div className="text-center mb-10">
-                        <div className="mx-auto h-16 w-16 bg-primary/10 rounded-xl flex items-center justify-center mb-4 text-primary">
-                            <span className="material-icons text-3xl">edit_note</span>
-                        </div>
-                        <h1 className="text-2xl font-bold text-slate-900 mb-2">Admin Portal</h1>
-                        <p className="text-slate-500 text-sm">Welcome back to ACJ EKSU Dashboard</p>
-                    </div>
+                    {showSetPassword ? (
+                        <>
+                            <div className="text-center mb-8">
+                                <div className="mx-auto h-16 w-16 bg-primary/10 rounded-xl flex items-center justify-center mb-4 text-primary">
+                                    <span className="material-icons text-3xl">lock</span>
+                                </div>
+                                <h1 className="text-2xl font-bold text-slate-900 mb-2">Set your password</h1>
+                                <p className="text-slate-500 text-sm">Choose a password so you can sign in next time.</p>
+                            </div>
+                            {error && (
+                                <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>
+                            )}
+                            <form onSubmit={handleSetPassword} className="space-y-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">New password</label>
+                                    <div className="relative">
+                                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 material-icons text-lg">lock</span>
+                                        <input type="password" required minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary sm:text-sm" placeholder="At least 6 characters" />
+                                    </div>
+                                </div>
+                                <button type="submit" disabled={setPasswordLoading} className="w-full py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all shadow-primary/30 disabled:opacity-70">
+                                    {setPasswordLoading ? 'Saving…' : 'Set password & continue'}
+                                </button>
+                            </form>
+                        </>
+                    ) : (
+                        <>
+                            <div className="text-center mb-10">
+                                <div className="mx-auto h-16 w-16 bg-primary/10 rounded-xl flex items-center justify-center mb-4 text-primary">
+                                    <span className="material-icons text-3xl">edit_note</span>
+                                </div>
+                                <h1 className="text-2xl font-bold text-slate-900 mb-2">Admin Portal</h1>
+                                <p className="text-slate-500 text-sm">Welcome back to ACJ EKSU Dashboard</p>
+                            </div>
 
-                    {error && (
-                        <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
-                            {error}
-                        </div>
+                            {error && (
+                                <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>
+                            )}
+
+                            <form onSubmit={handleLogin} className="space-y-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Email Address</label>
+                                    <div className="relative">
+                                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 material-icons text-lg">mail</span>
+                                        <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary sm:text-sm" placeholder="admin@acjeksu.com" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Password</label>
+                                    <div className="relative">
+                                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 material-icons text-lg">lock</span>
+                                        <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="block w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary sm:text-sm" placeholder="••••••••" />
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center">
+                                        <input type="checkbox" id="remember" className="h-4 w-4 text-primary focus:ring-primary border-slate-300 rounded cursor-pointer" />
+                                        <label htmlFor="remember" className="ml-2 block text-sm text-slate-600 cursor-pointer">Remember me</label>
+                                    </div>
+                                    <Link to="/admin/forgot-password" className="text-sm font-medium text-primary hover:underline">Forgot password?</Link>
+                                </div>
+                                <button type="submit" disabled={loading} className="w-full py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all shadow-primary/30 disabled:opacity-70">
+                                    {loading ? 'Signing in…' : 'Sign In'}
+                                </button>
+                            </form>
+                        </>
                     )}
-
-                    <form onSubmit={handleLogin} className="space-y-6">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">Email Address</label>
-                            <div className="relative">
-                                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 material-icons text-lg">mail</span>
-                                <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary sm:text-sm" placeholder="admin@acjeksu.com" />
-                            </div>
-                        </div>
-                        <div>
-                             <label className="block text-sm font-medium text-slate-700 mb-2">Password</label>
-                            <div className="relative">
-                                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 material-icons text-lg">lock</span>
-                                <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="block w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary sm:text-sm" placeholder="••••••••" />
-                            </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center">
-                                <input type="checkbox" id="remember" className="h-4 w-4 text-primary focus:ring-primary border-slate-300 rounded cursor-pointer" />
-                                <label htmlFor="remember" className="ml-2 block text-sm text-slate-600 cursor-pointer">Remember me</label>
-                            </div>
-                            <a href="#" className="text-sm font-medium text-primary hover:underline">Forgot password?</a>
-                        </div>
-                        <button type="submit" disabled={loading} className="w-full py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all shadow-primary/30 disabled:opacity-70">
-                            {loading ? 'Signing in…' : 'Sign In'}
-                        </button>
-                    </form>
                 </div>
                 <div className="bg-slate-50 px-8 py-4 border-t border-slate-100 flex items-center justify-center">
                     <p className="text-xs text-slate-500 flex items-center gap-1">
@@ -84,6 +181,52 @@ export const AdminLogin = () => {
             <footer className="mt-8 text-center relative z-10 text-xs text-slate-400">
                 © 2024 ACJ EKSU. All rights reserved.
             </footer>
+        </div>
+    );
+};
+
+export const AdminForgotPassword = () => {
+    const navigate = useNavigate();
+    const [email, setEmail] = useState('');
+    const [sent, setSent] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
+        setLoading(true);
+        const redirectTo = `${window.location.origin}/admin/login`;
+        const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+        setLoading(false);
+        if (err) {
+            setError(err.message ?? 'Failed to send reset email');
+            return;
+        }
+        setSent(true);
+    };
+
+    return (
+        <div className="min-h-screen bg-background-light flex flex-col items-center justify-center p-4 font-display">
+            <main className="w-full max-w-md bg-white rounded-xl shadow-xl border border-slate-100 p-8">
+                <div className="h-2 w-full bg-gradient-to-r from-primary to-primary-light rounded-t-xl -mt-8 -mx-8 mb-6"></div>
+                <h1 className="text-xl font-bold text-slate-900 mb-2">Reset password</h1>
+                <p className="text-slate-500 text-sm mb-6">Enter your email and we’ll send a link to set a new password.</p>
+                {sent ? (
+                    <div className="p-4 rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm mb-4">
+                        Check your email for a link to reset your password.
+                    </div>
+                ) : (
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {error && <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>}
+                        <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="Your email" className="block w-full rounded-lg border border-slate-200 px-3 py-2.5 focus:ring-2 focus:ring-primary focus:border-primary" />
+                        <button type="submit" disabled={loading} className="w-full py-2.5 rounded-lg bg-primary text-white font-medium text-sm hover:bg-primary-light disabled:opacity-70">
+                            {loading ? 'Sending…' : 'Send reset link'}
+                        </button>
+                    </form>
+                )}
+                <Link to="/admin/login" className="text-sm text-primary hover:underline mt-4 inline-block">Back to sign in</Link>
+            </main>
         </div>
     );
 };

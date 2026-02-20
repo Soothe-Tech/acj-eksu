@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { PublicLayout, AdminLayout } from './components/Layouts';
 import { AdminGuard } from './components/AdminGuard';
 import { Home, About, Journalists, Contact, News, ArticleView } from './components/PublicPages';
 import { 
   AdminLogin, 
+  AdminForgotPassword,
   AdminDashboard, 
   AdminJournalists, 
   AdminEditor, 
@@ -15,6 +16,16 @@ import {
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Redirect old hash URLs (#/admin/login) to path URLs (/admin/login) so invite links and bookmarks work
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#/') && hash.length > 2) {
+      const path = (window.location.pathname.replace(/\/$/, '') || '/') + hash.slice(1);
+      window.location.replace(path + window.location.search);
+      return;
+    }
+  }, []);
 
   useEffect(() => {
     // Function to check if fonts are ready
@@ -87,6 +98,7 @@ function App() {
 
         {/* Admin Login - Standalone */}
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/forgot-password" element={<AdminForgotPassword />} />
 
         {/* Admin Dashboard Routes (protected) */}
         <Route path="/admin" element={<AdminGuard />}>
