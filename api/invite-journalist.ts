@@ -110,8 +110,9 @@ export default async function handler(req: any, res: any) {
     (req.headers?.origin ?? '').toString().trim(),
     getEnv('VERCEL_URL') ? `https://${getEnv('VERCEL_URL')}` : ''
   );
+  const base = baseUrl.replace(/\/$/, '');
   const safeRedirectTo = baseUrl
-    ? (baseUrl.includes('/admin') ? baseUrl.replace(/\/$/, '') : `${baseUrl.replace(/\/$/, '')}/admin/login`)
+    ? (base.includes('/admin') ? base : `${base}/admin/set-password`)
     : undefined;
 
   // Invite (send email). If user already exists, we link instead.

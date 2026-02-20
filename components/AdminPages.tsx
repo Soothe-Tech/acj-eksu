@@ -16,6 +16,132 @@ function parseHashParams(hash: string): Record<string, string> {
     return out;
 }
 
+function parseQueryParams(search: string): Record<string, string> {
+    const out: Record<string, string> = {};
+    if (!search || search.charAt(0) !== '?') return out;
+    const q = search.slice(1).split('&');
+    for (const p of q) {
+        const i = p.indexOf('=');
+        if (i > 0) out[decodeURIComponent(p.slice(0, i))] = decodeURIComponent(p.slice(i + 1)).replace(/\+/g, ' ');
+    }
+    return out;
+}
+
+/** Dedicated page for invite / recovery: set session from URL then show "Set your password" form. */
+export const AdminSetPassword = () => {
+    const navigate = useNavigate();
+    const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [ready, setReady] = useState(false);
+    const [newPassword, setNewPassword] = useState('');
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        const hashParams = parseHashParams(window.location.hash);
+        const queryParams = parseQueryParams(window.location.search);
+        const params = { ...queryParams, ...hashParams };
+        const accessToken = params.access_token || params['access_token'];
+        const refreshToken = params.refresh_token || params['refresh_token'];
+
+        if (!accessToken || !refreshToken) {
+            setLoading(false);
+            setReady(false);
+            return;
+        }
+
+        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+            .then(({ error: err }) => {
+                if (err) {
+                    setError(err.message ?? 'Invalid or expired link');
+                } else {
+                    setReady(true);
+                    window.history.replaceState(null, '', window.location.pathname);
+                }
+            })
+            .catch(() => setError('Invalid or expired link'))
+            .finally(() => setLoading(false));
+    }, []);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newPassword || newPassword.length < 6) {
+            setError('Password must be at least 6 characters');
+            return;
+        }
+        setError(null);
+        setSaving(true);
+        const { error: err } = await supabase.auth.updateUser({ password: newPassword });
+        setSaving(false);
+        if (err) {
+            setError(err.message ?? 'Failed to set password');
+            return;
+        }
+        navigate('/admin', { replace: true });
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-background-light flex flex-col items-center justify-center p-4 font-display">
+                <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <p className="mt-4 text-slate-600 text-sm">Loading…</p>
+            </div>
+        );
+    }
+
+    if (!ready) {
+        return (
+            <div className="min-h-screen bg-background-light flex flex-col items-center justify-center p-4 font-display">
+                <main className="w-full max-w-md bg-white rounded-xl shadow-xl border border-slate-100 p-8 text-center">
+                    <div className="h-2 w-full bg-gradient-to-r from-primary to-primary-light rounded-t-xl -mt-8 -mx-8 mb-6"></div>
+                    <span className="material-icons text-4xl text-slate-300 mb-4">link_off</span>
+                    <h1 className="text-xl font-bold text-slate-900 mb-2">Invalid or expired link</h1>
+                    <p className="text-slate-500 text-sm mb-4">{error || 'This set-password link is invalid or has expired.'}</p>
+                    <Link to="/admin/login" className="text-primary font-medium hover:underline">Go to sign in</Link>
+                </main>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-background-light flex flex-col items-center justify-center p-4 relative overflow-hidden font-display">
+            <div className="absolute -top-40 -left-40 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-50" />
+            <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-50" />
+            <main className="w-full max-w-md bg-white rounded-xl shadow-2xl shadow-primary/10 border border-slate-100 relative z-10 overflow-hidden">
+                <div className="h-2 w-full bg-gradient-to-r from-primary to-primary-light" />
+                <div className="p-8 sm:p-10">
+                    <div className="text-center mb-8">
+                        <div className="mx-auto h-16 w-16 bg-primary/10 rounded-xl flex items-center justify-center mb-4 text-primary">
+                            <span className="material-icons text-3xl">lock</span>
+                        </div>
+                        <h1 className="text-2xl font-bold text-slate-900 mb-2">Set your password</h1>
+                        <p className="text-slate-500 text-sm">Choose a password so you can sign in next time.</p>
+                    </div>
+                    {error && (
+                        <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>
+                    )}
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">New password</label>
+                            <div className="relative">
+                                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 material-icons text-lg">lock</span>
+                                <input type="password" required minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary sm:text-sm" placeholder="At least 6 characters" />
+                            </div>
+                        </div>
+                        <button type="submit" disabled={saving} className="w-full py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all shadow-primary/30 disabled:opacity-70">
+                            {saving ? 'Saving…' : 'Set password & continue'}
+                        </button>
+                    </form>
+                </div>
+                <div className="bg-slate-50 px-8 py-4 border-t border-slate-100 flex items-center justify-center">
+                    <p className="text-xs text-slate-500 flex items-center gap-1">
+                        <span className="material-icons text-xs">lock</span> Secure connection via SSL/TLS
+                    </p>
+                </div>
+            </main>
+        </div>
+    );
+};
+
 export const AdminLogin = () => {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');

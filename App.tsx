@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { PublicLayout, AdminLayout } from './components/Layouts';
 import { AdminGuard } from './components/AdminGuard';
 import { Home, About, Journalists, Contact, News, ArticleView } from './components/PublicPages';
 import { 
   AdminLogin, 
   AdminForgotPassword,
+  AdminSetPassword,
   AdminDashboard, 
   AdminJournalists, 
   AdminEditor, 
@@ -96,19 +97,20 @@ function App() {
           <Route path="contact" element={<Contact />} />
         </Route>
 
-        {/* Admin Login - Standalone */}
-        <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin/forgot-password" element={<AdminForgotPassword />} />
-
-        {/* Admin Dashboard Routes (protected) */}
-        <Route path="/admin" element={<AdminGuard />}>
-          <Route element={<AdminLayout />}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="journalists" element={<AdminJournalists />} />
-            <Route path="editor" element={<AdminEditor />} />
-            <Route path="settings" element={<AdminSettings />} />
-            <Route path="analytics" element={<AdminAnalytics />} />
-            <Route path="media" element={<AdminMediaLibrary />} />
+        {/* Admin: auth pages (no guard) and dashboard (protected) under one path so set-password matches first */}
+        <Route path="/admin" element={<Outlet />}>
+          <Route path="login" element={<AdminLogin />} />
+          <Route path="set-password" element={<AdminSetPassword />} />
+          <Route path="forgot-password" element={<AdminForgotPassword />} />
+          <Route element={<AdminGuard />}>
+            <Route element={<AdminLayout />}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="journalists" element={<AdminJournalists />} />
+              <Route path="editor" element={<AdminEditor />} />
+              <Route path="settings" element={<AdminSettings />} />
+              <Route path="analytics" element={<AdminAnalytics />} />
+              <Route path="media" element={<AdminMediaLibrary />} />
+            </Route>
           </Route>
         </Route>
 
